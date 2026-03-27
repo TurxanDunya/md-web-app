@@ -43,5 +43,7 @@ func main() {
 	router.PUT("/games/:id", handlers.UpdateGameHandler(pool))
 	router.DELETE("/games/:id", handlers.DeleteGameHandler(pool))
 
+	router.POST("/auth/register", handlers.RegisterUserHandler(pool))
+
 	router.Run(":" + cfg.Port)
 }
