@@ -4,6 +4,7 @@ import (
 	"md_api/internal/config"
 	"md_api/internal/database"
 	"md_api/internal/handlers"
+	"md_api/internal/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -37,13 +38,14 @@ func main() {
 		})
 	})
 
-	router.POST("/games", handlers.CreateGameHandler(pool))
+	router.POST("/games", middleware.AuthMiddleware(cfg), handlers.CreateGameHandler(pool))
 	router.GET("/games", handlers.GetAllGamesHandler(pool))
 	router.GET("/games/:id", handlers.GetGameByIDHandler(pool))
-	router.PUT("/games/:id", handlers.UpdateGameHandler(pool))
-	router.DELETE("/games/:id", handlers.DeleteGameHandler(pool))
+	router.PUT("/games/:id", middleware.AuthMiddleware(cfg), handlers.UpdateGameHandler(pool))
+	router.DELETE("/games/:id", middleware.AuthMiddleware(cfg), handlers.DeleteGameHandler(pool))
 
 	router.POST("/auth/register", handlers.RegisterUserHandler(pool))
+	router.POST("/auth/login", handlers.LoginUserHandler(pool, cfg))
 
 	router.Run(":" + cfg.Port)
 }
