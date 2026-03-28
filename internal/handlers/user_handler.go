@@ -84,7 +84,7 @@ func LoginUserHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 	}
 }
 
-func generateJWT(userID int, email string, cfg *config.Config) (string, error) {
+func generateJWT(userID string, email string, cfg *config.Config) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id": userID,
 		"email":   email,

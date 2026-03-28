@@ -38,14 +38,14 @@ func main() {
 		})
 	})
 
-	router.POST("/games", middleware.AuthMiddleware(cfg), handlers.CreateGameHandler(pool))
-	router.GET("/games", handlers.GetAllGamesHandler(pool))
-	router.GET("/games/:id", handlers.GetGameByIDHandler(pool))
-	router.PUT("/games/:id", middleware.AuthMiddleware(cfg), handlers.UpdateGameHandler(pool))
-	router.DELETE("/games/:id", middleware.AuthMiddleware(cfg), handlers.DeleteGameHandler(pool))
+	router.POST("/api/v1/games", middleware.AuthMiddleware(cfg), handlers.CreateGameHandler(pool))
+	router.GET("/api/v1/games", handlers.GetAllGamesHandler(pool))
+	router.GET("/api/v1/games/:id", handlers.GetGameByIDHandler(pool))
+	router.PUT("/api/v1/games/:id", middleware.AuthMiddleware(cfg), handlers.UpdateGameHandler(pool))
+	router.DELETE("/api/v1/games/:id", middleware.AuthMiddleware(cfg), handlers.DeleteGameHandler(pool))
 
-	router.POST("/auth/register", handlers.RegisterUserHandler(pool))
-	router.POST("/auth/login", handlers.LoginUserHandler(pool, cfg))
+	router.POST("/api/v1/auth/register", handlers.RegisterUserHandler(pool))
+	router.POST("/api/v1/auth/login", handlers.LoginUserHandler(pool, cfg))
 
 	router.Run(":" + cfg.Port)
 }

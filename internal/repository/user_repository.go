@@ -14,9 +14,9 @@ func CreateUser(pool *pgxpool.Pool, user *models.User) (*models.User, error) {
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	var query string = `INSERT INTO users (email, password_hash)
+	var query string = `INSERT INTO users (email, password)
 		VALUES ($1, $2)
-		RETURNING id, email, password_hash, created_at, updated_at`
+		RETURNING id, email, password, created_at, updated_at`
 
 	var createdUser models.User
 	err := pool.QueryRow(ctx, query, user.Email, user.Password).Scan(
