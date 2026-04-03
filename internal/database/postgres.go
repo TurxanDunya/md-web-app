@@ -8,20 +8,15 @@ import (
 )
 
 func Connect(databaseUrl string) (*pgxpool.Pool, error) {
-	var ctx context.Context = context.Background()
+	ctx := context.Background()
 
-	var config *pgxpool.Config
-	var err error
-	config, err = pgxpool.ParseConfig(databaseUrl)
-
+	config, err := pgxpool.ParseConfig(databaseUrl)
 	if err != nil {
 		log.Printf("Unable to parse DATABASE_URL: %v", err)
 		return nil, err
 	}
 
-	var pool *pgxpool.Pool
-	pool, err = pgxpool.NewWithConfig(ctx, config)
-
+	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		log.Printf("Unable to create connection pool: %v", err)
 		return nil, err

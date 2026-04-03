@@ -7,37 +7,41 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type RegisterUserRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=8"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 type LoginUserRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=8"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 type LoginUserResponse struct {
 	Token string `json:"token"`
 }
 
-func RegisterUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
-	return func(c *gin.Context) {
+func RegisterUserHandler(pool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		var request RegisterUserRequest
-		if err := c.ShouldBindJSON(&request); err != nil {
-			c.JSON(400, gin.H{"error": err.Error()})
+		if err := readJSON(r, &request); err != nil {
+			WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		if request.Email == "" || request.Password == "" {
+			WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "email and password are required"})
 			return
 		}
 
 		bcryptedPassword, err := bcrypt.GenerateFromPassword([]byte(request.Password), bcrypt.DefaultCost)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+			WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to hash password"})
 			return
 		}
 
@@ -46,41 +50,41 @@ func RegisterUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			Password: string(bcryptedPassword),
 		})
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
 
-		c.JSON(http.StatusCreated, user)
+		WriteJSON(w, http.StatusCreated, user)
 	}
 }
 
-func LoginUserHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
-	return func(c *gin.Context) {
+func LoginUserHandler(pool *pgxpool.Pool, cfg *config.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		var request LoginUserRequest
-		if err := c.BindJSON(&request); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if err := readJSON(r, &request); err != nil {
+			WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
 
 		user, err := repository.GetUserByEmail(pool, request.Email)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+			WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid email or password"})
 			return
 		}
 
 		err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(request.Password))
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+			WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid email or password"})
 			return
 		}
 
 		token, err := generateJWT(user.ID, user.Email, cfg)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+			WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to generate token"})
 			return
 		}
 
-		c.JSON(http.StatusOK, LoginUserResponse{Token: token})
+		WriteJSON(w, http.StatusOK, LoginUserResponse{Token: token})
 	}
 }
 

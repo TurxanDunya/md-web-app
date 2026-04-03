@@ -1,45 +1,51 @@
 package middleware
 
 import (
+	"context"
 	"md_api/internal/config"
 	"net/http"
 	"strings"
 
-	"github.com/gin-gonic/gin"
+	"md_api/internal/handlers"
+
 	"github.com/golang-jwt/jwt"
 )
 
-func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
-	return func(c *gin.Context) {	
-		authHeader := c.GetHeader("Authorization")
+type contextKey string
+
+const (
+	UserIDKey contextKey = "user_id"
+	EmailKey  contextKey = "email"
+)
+
+func AuthMiddleware(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
-			c.Abort()
+			handlers.WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "Authorization header is required"})
 			return
 		}
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		if tokenString == "" || tokenString == authHeader {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
-			c.Abort()
+			handlers.WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid token"})
 			return
 		}
 
-		claims, err := ValidateJWT(tokenString, cfg)
+		claims, err := validateJWT(tokenString, cfg)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
-			c.Abort()
+			handlers.WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid token"})
 			return
 		}
 
-		c.Set("user_id", claims["user_id"])
-		c.Set("email", claims["email"])
+		ctx := context.WithValue(r.Context(), UserIDKey, claims["user_id"])
+		ctx = context.WithValue(ctx, EmailKey, claims["email"])
 
-		c.Next()
+		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }
 
-func ValidateJWT(tokenString string, cfg *config.Config) (map[string]any, error) {
+func validateJWT(tokenString string, cfg *config.Config) (map[string]any, error) {
 	claims := jwt.MapClaims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (any, error) {
 		return []byte(cfg.JWTSecret), nil
