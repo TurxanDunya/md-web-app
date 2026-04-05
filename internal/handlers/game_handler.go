@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"md_api/internal/repository"
 	"net/http"
 	"strconv"
@@ -24,11 +25,11 @@ type UpdateGameRequest struct {
 	ReleaseDate       time.Time `json:"release_date"`
 }
 
-func CreateGameHandler(pool *pgxpool.Pool) http.HandlerFunc {
+func CreateGameHandler(pool *pgxpool.Pool, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request CreateGameRequest
 		if err := readJSON(r, &request); err != nil {
-			WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "Internal server error"})
 			return
 		}
 
@@ -37,9 +38,10 @@ func CreateGameHandler(pool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		game, err := repository.CreateGame(pool, request.Title, request.DevelopmentStatus, request.Description, request.ReleaseDate)
+		game, err := repository.CreateGame(pool, request.Title, request.DevelopmentStatus, request.Description, request.ReleaseDate, logger)
 		if err != nil {
-			WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			logger.Error("failed to create game", "error", err)
+			WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal server error"})
 			return
 		}
 
@@ -47,11 +49,12 @@ func CreateGameHandler(pool *pgxpool.Pool) http.HandlerFunc {
 	}
 }
 
-func GetAllGamesHandler(pool *pgxpool.Pool) http.HandlerFunc {
+func GetAllGamesHandler(pool *pgxpool.Pool, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		games, err := repository.GetAllGames(pool)
+		games, err := repository.GetAllGames(pool, logger)
 		if err != nil {
-			WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			logger.Error("failed to get all games", "error", err)
+			WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal server error"})
 			return
 		}
 
@@ -59,7 +62,7 @@ func GetAllGamesHandler(pool *pgxpool.Pool) http.HandlerFunc {
 	}
 }
 
-func GetGameByIDHandler(pool *pgxpool.Pool) http.HandlerFunc {
+func GetGameByIDHandler(pool *pgxpool.Pool, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 
@@ -69,13 +72,14 @@ func GetGameByIDHandler(pool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		game, err := repository.GetGameByID(pool, int64(idInt))
+		game, err := repository.GetGameByID(pool, int64(idInt), logger)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				WriteJSON(w, http.StatusNotFound, map[string]string{"error": "Game not found"})
 				return
 			}
-			WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			logger.Error("failed to get game", "game_id", idInt, "error", err)
+			WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal server error"})
 			return
 		}
 
@@ -83,7 +87,7 @@ func GetGameByIDHandler(pool *pgxpool.Pool) http.HandlerFunc {
 	}
 }
 
-func UpdateGameHandler(pool *pgxpool.Pool) http.HandlerFunc {
+func UpdateGameHandler(pool *pgxpool.Pool, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 
@@ -95,17 +99,18 @@ func UpdateGameHandler(pool *pgxpool.Pool) http.HandlerFunc {
 
 		var request UpdateGameRequest
 		if err := readJSON(r, &request); err != nil {
-			WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "Internal server error"})
 			return
 		}
 
-		game, err := repository.UpdateGame(pool, int64(idInt), request.Title, request.DevelopmentStatus, request.Description, request.ReleaseDate)
+		game, err := repository.UpdateGame(pool, int64(idInt), request.Title, request.DevelopmentStatus, request.Description, request.ReleaseDate, logger)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				WriteJSON(w, http.StatusNotFound, map[string]string{"error": "Game not found"})
 				return
 			}
-			WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			logger.Error("failed to update game", "game_id", idInt, "error", err)
+			WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal server error"})
 			return
 		}
 
@@ -113,7 +118,7 @@ func UpdateGameHandler(pool *pgxpool.Pool) http.HandlerFunc {
 	}
 }
 
-func DeleteGameHandler(pool *pgxpool.Pool) http.HandlerFunc {
+func DeleteGameHandler(pool *pgxpool.Pool, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 
@@ -123,13 +128,14 @@ func DeleteGameHandler(pool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		err = repository.DeleteGame(pool, int64(idInt))
+		err = repository.DeleteGame(pool, int64(idInt), logger)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				WriteJSON(w, http.StatusNotFound, map[string]string{"error": "Game not found"})
 				return
 			}
-			WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			logger.Error("failed to delete game", "game_id", idInt, "error", err)
+			WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal server error"})
 			return
 		}
 

@@ -2,13 +2,16 @@ package repository
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"md_api/internal/models"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func CreateUser(pool *pgxpool.Pool, user *models.User) (*models.User, error) {
+func CreateUser(pool *pgxpool.Pool, user *models.User, logger *slog.Logger) (*models.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -24,13 +27,18 @@ func CreateUser(pool *pgxpool.Pool, user *models.User) (*models.User, error) {
 		&createdUser.CreatedAt,
 		&createdUser.UpdatedAt)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			logger.Error("db: query timeout creating user", "email", user.Email, "error", err)
+		} else {
+			logger.Error("db: failed to create user", "email", user.Email, "error", err)
+		}
 		return nil, err
 	}
 
 	return &createdUser, nil
 }
 
-func GetUserByEmail(pool *pgxpool.Pool, email string) (*models.User, error) {
+func GetUserByEmail(pool *pgxpool.Pool, email string, logger *slog.Logger) (*models.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -46,13 +54,18 @@ func GetUserByEmail(pool *pgxpool.Pool, email string) (*models.User, error) {
 		&user.CreatedAt,
 		&user.UpdatedAt)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			logger.Error("db: query timeout getting user by email", "error", err)
+		} else if err != pgx.ErrNoRows {
+			logger.Error("db: failed to get user by email", "error", err)
+		}
 		return nil, err
 	}
 
 	return &user, nil
 }
 
-func GetUserByID(pool *pgxpool.Pool, id int) (*models.User, error) {
+func GetUserByID(pool *pgxpool.Pool, id int, logger *slog.Logger) (*models.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -68,6 +81,11 @@ func GetUserByID(pool *pgxpool.Pool, id int) (*models.User, error) {
 		&user.CreatedAt,
 		&user.UpdatedAt)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			logger.Error("db: query timeout getting user by id", "user_id", id, "error", err)
+		} else if err != pgx.ErrNoRows {
+			logger.Error("db: failed to get user by id", "user_id", id, "error", err)
+		}
 		return nil, err
 	}
 

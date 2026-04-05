@@ -2,14 +2,26 @@ package middleware
 
 import (
 	"context"
+	"log/slog"
 	"md_api/internal/config"
 	"net/http"
 	"strings"
+	"time"
 
 	"md_api/internal/handlers"
 
 	"github.com/golang-jwt/jwt"
 )
+
+type responseWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.status = code
+	rw.ResponseWriter.WriteHeader(code)
+}
 
 type contextKey string
 
@@ -18,22 +30,42 @@ const (
 	EmailKey  contextKey = "email"
 )
 
-func AuthMiddleware(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
+func RequestLogger(logger *slog.Logger, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rw := &responseWriter{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(rw, r)
+		logger.Info("request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", rw.status,
+			"duration_ms", time.Since(start).Milliseconds(),
+		)
+	}
+}
+
+func AuthMiddleware(cfg *config.Config, logger *slog.Logger, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
+			logger.Warn("auth failed: missing authorization header",
+				"method", r.Method, "path", r.URL.Path)
 			handlers.WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "Authorization header is required"})
 			return
 		}
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		if tokenString == "" || tokenString == authHeader {
+			logger.Warn("auth failed: malformed bearer token",
+				"method", r.Method, "path", r.URL.Path)
 			handlers.WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid token"})
 			return
 		}
 
 		claims, err := validateJWT(tokenString, cfg)
 		if err != nil {
+			logger.Warn("auth failed: invalid token",
+				"method", r.Method, "path", r.URL.Path, "error", err)
 			handlers.WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid token"})
 			return
 		}
