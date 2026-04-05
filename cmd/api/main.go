@@ -10,19 +10,8 @@ import (
 )
 
 func main() {
-	var handler slog.Handler
-	if os.Getenv("APP_ENV") == "production" {
-		handler = slog.NewJSONHandler(os.Stdout, nil)
-	} else {
-		handler = slog.NewTextHandler(os.Stdout, nil)
-	}
-	logger := slog.New(handler)
-
-	cfg, err := config.Load()
-	if err != nil {
-		logger.Error("failed to load config", "error", err)
-		os.Exit(1)
-	}
+	logger := configureLogger()
+	cfg := configureConfig(logger)
 
 	pool, err := database.Connect(cfg.DatabaseURL, logger)
 	if err != nil {
@@ -39,4 +28,23 @@ func main() {
 		logger.Error("server stopped", "error", err)
 		os.Exit(1)
 	}
+}
+
+func configureLogger() *slog.Logger {
+	var handler slog.Handler
+	if os.Getenv("APP_ENV") == "production" {
+		handler = slog.NewJSONHandler(os.Stdout, nil)
+	} else {
+		handler = slog.NewTextHandler(os.Stdout, nil)
+	}
+	return slog.New(handler)
+}
+
+func configureConfig(logger *slog.Logger) *config.Config {
+	cfg, err := config.Load()
+	if err != nil {
+		logger.Error("failed to load config", "error", err)
+		os.Exit(1)
+	}
+	return cfg
 }
