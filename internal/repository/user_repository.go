@@ -11,7 +11,15 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func CreateUser(pool *pgxpool.Pool, user *models.User, logger *slog.Logger) (*models.User, error) {
+type UserRepository struct {
+	pool *pgxpool.Pool
+}
+
+func NewUserRepository(pool *pgxpool.Pool) *UserRepository {
+	return &UserRepository{pool: pool}
+}
+
+func (r *UserRepository) Create(user *models.User) (*models.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -20,7 +28,7 @@ func CreateUser(pool *pgxpool.Pool, user *models.User, logger *slog.Logger) (*mo
 		RETURNING id, email, password, created_at, updated_at`
 
 	var createdUser models.User
-	err := pool.QueryRow(ctx, query, user.Email, user.Password).Scan(
+	err := r.pool.QueryRow(ctx, query, user.Email, user.Password).Scan(
 		&createdUser.ID,
 		&createdUser.Email,
 		&createdUser.Password,
@@ -28,9 +36,9 @@ func CreateUser(pool *pgxpool.Pool, user *models.User, logger *slog.Logger) (*mo
 		&createdUser.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			logger.Error("db: query timeout creating user", "email", user.Email, "error", err)
+			slog.Error("db: query timeout creating user", "email", user.Email, "error", err)
 		} else {
-			logger.Error("db: failed to create user", "email", user.Email, "error", err)
+			slog.Error("db: failed to create user", "email", user.Email, "error", err)
 		}
 		return nil, err
 	}
@@ -38,7 +46,7 @@ func CreateUser(pool *pgxpool.Pool, user *models.User, logger *slog.Logger) (*mo
 	return &createdUser, nil
 }
 
-func GetUserByEmail(pool *pgxpool.Pool, email string, logger *slog.Logger) (*models.User, error) {
+func (r *UserRepository) GetByEmail(email string) (*models.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -47,7 +55,7 @@ func GetUserByEmail(pool *pgxpool.Pool, email string, logger *slog.Logger) (*mod
 		WHERE email = $1`
 
 	var user models.User
-	err := pool.QueryRow(ctx, query, email).Scan(
+	err := r.pool.QueryRow(ctx, query, email).Scan(
 		&user.ID,
 		&user.Email,
 		&user.IsActive,
@@ -55,9 +63,9 @@ func GetUserByEmail(pool *pgxpool.Pool, email string, logger *slog.Logger) (*mod
 		&user.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			logger.Error("db: query timeout getting user by email", "error", err)
+			slog.Error("db: query timeout getting user by email", "error", err)
 		} else if err != pgx.ErrNoRows {
-			logger.Error("db: failed to get user by email", "error", err)
+			slog.Error("db: failed to get user by email", "error", err)
 		}
 		return nil, err
 	}
@@ -65,7 +73,7 @@ func GetUserByEmail(pool *pgxpool.Pool, email string, logger *slog.Logger) (*mod
 	return &user, nil
 }
 
-func GetUserByID(pool *pgxpool.Pool, id int, logger *slog.Logger) (*models.User, error) {
+func (r *UserRepository) GetByID(id int) (*models.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -74,7 +82,7 @@ func GetUserByID(pool *pgxpool.Pool, id int, logger *slog.Logger) (*models.User,
 		WHERE id = $1`
 
 	var user models.User
-	err := pool.QueryRow(ctx, query, id).Scan(
+	err := r.pool.QueryRow(ctx, query, id).Scan(
 		&user.ID,
 		&user.Email,
 		&user.IsActive,
@@ -82,9 +90,9 @@ func GetUserByID(pool *pgxpool.Pool, id int, logger *slog.Logger) (*models.User,
 		&user.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			logger.Error("db: query timeout getting user by id", "user_id", id, "error", err)
+			slog.Error("db: query timeout getting user by id", "user_id", id, "error", err)
 		} else if err != pgx.ErrNoRows {
-			logger.Error("db: failed to get user by id", "user_id", id, "error", err)
+			slog.Error("db: failed to get user by id", "user_id", id, "error", err)
 		}
 		return nil, err
 	}

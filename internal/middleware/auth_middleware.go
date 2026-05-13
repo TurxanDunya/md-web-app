@@ -30,12 +30,12 @@ const (
 	EmailKey  contextKey = "email"
 )
 
-func RequestLogger(logger *slog.Logger, next http.HandlerFunc) http.HandlerFunc {
+func RequestLogger(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		rw := &responseWriter{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rw, r)
-		logger.Info("request",
+		slog.Info("request",
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", rw.status,
@@ -44,11 +44,11 @@ func RequestLogger(logger *slog.Logger, next http.HandlerFunc) http.HandlerFunc 
 	}
 }
 
-func AuthMiddleware(cfg *config.Config, logger *slog.Logger, next http.HandlerFunc) http.HandlerFunc {
+func AuthMiddleware(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			logger.Warn("auth failed: missing authorization header",
+			slog.Warn("auth failed: missing authorization header",
 				"method", r.Method, "path", r.URL.Path)
 			handlers.WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "Authorization header is required"})
 			return
@@ -56,7 +56,7 @@ func AuthMiddleware(cfg *config.Config, logger *slog.Logger, next http.HandlerFu
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		if tokenString == "" || tokenString == authHeader {
-			logger.Warn("auth failed: malformed bearer token",
+			slog.Warn("auth failed: malformed bearer token",
 				"method", r.Method, "path", r.URL.Path)
 			handlers.WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid token"})
 			return
@@ -64,7 +64,7 @@ func AuthMiddleware(cfg *config.Config, logger *slog.Logger, next http.HandlerFu
 
 		claims, err := validateJWT(tokenString, cfg)
 		if err != nil {
-			logger.Warn("auth failed: invalid token",
+			slog.Warn("auth failed: invalid token",
 				"method", r.Method, "path", r.URL.Path, "error", err)
 			handlers.WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid token"})
 			return

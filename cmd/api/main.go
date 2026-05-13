@@ -10,40 +10,40 @@ import (
 )
 
 func main() {
-	logger := configureLogger()
-	cfg := configureConfig(logger)
+	configureLogger()
+	cfg := configureConfig()
 
-	pool, err := database.Connect(cfg.DatabaseURL, logger)
+	pool, err := database.Connect(cfg.DatabaseURL)
 	if err != nil {
-		logger.Error("failed to connect to database", "error", err)
+		slog.Error("failed to connect to database", "error", err)
 		os.Exit(1)
 	}
 	defer pool.Close()
 
 	mux := http.NewServeMux()
-	routes.Setup(mux, pool, cfg, logger)
+	routes.Setup(mux, pool, cfg)
 
-	logger.Info("server starting", "port", cfg.Port)
+	slog.Info("server starting", "port", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, mux); err != nil {
-		logger.Error("server stopped", "error", err)
+		slog.Error("server stopped", "error", err)
 		os.Exit(1)
 	}
 }
 
-func configureLogger() *slog.Logger {
+func configureLogger() {
 	var handler slog.Handler
 	if os.Getenv("APP_ENV") == "production" {
 		handler = slog.NewJSONHandler(os.Stdout, nil)
 	} else {
 		handler = slog.NewTextHandler(os.Stdout, nil)
 	}
-	return slog.New(handler)
+	slog.SetDefault(slog.New(handler))
 }
 
-func configureConfig(logger *slog.Logger) *config.Config {
+func configureConfig() *config.Config {
 	cfg, err := config.Load()
 	if err != nil {
-		logger.Error("failed to load config", "error", err)
+		slog.Error("failed to load config", "error", err)
 		os.Exit(1)
 	}
 	return cfg

@@ -11,7 +11,15 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func CreateGame(pool *pgxpool.Pool, title string, developmentStatus string, description string, releaseDate time.Time, logger *slog.Logger) (*models.Game, error) {
+type GameRepository struct {
+	pool *pgxpool.Pool
+}
+
+func NewGameRepository(pool *pgxpool.Pool) *GameRepository {
+	return &GameRepository{pool: pool}
+}
+
+func (r *GameRepository) Create(title string, developmentStatus string, description string, releaseDate time.Time) (*models.Game, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -20,7 +28,7 @@ func CreateGame(pool *pgxpool.Pool, title string, developmentStatus string, desc
 		RETURNING id, title, development_status, description, release_date, created_at, updated_at`
 
 	var game models.Game
-	err := pool.QueryRow(ctx, query, title, developmentStatus, description, releaseDate).Scan(
+	err := r.pool.QueryRow(ctx, query, title, developmentStatus, description, releaseDate).Scan(
 		&game.ID,
 		&game.Title,
 		&game.DevelopmentStatus,
@@ -31,9 +39,9 @@ func CreateGame(pool *pgxpool.Pool, title string, developmentStatus string, desc
 	)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			logger.Error("db: query timeout creating game", "error", err)
+			slog.Error("db: query timeout creating game", "error", err)
 		} else {
-			logger.Error("db: failed to create game", "error", err)
+			slog.Error("db: failed to create game", "error", err)
 		}
 		return nil, err
 	}
@@ -41,7 +49,7 @@ func CreateGame(pool *pgxpool.Pool, title string, developmentStatus string, desc
 	return &game, nil
 }
 
-func GetAllGames(pool *pgxpool.Pool, logger *slog.Logger) ([]*models.Game, error) {
+func (r *GameRepository) GetAll() ([]*models.Game, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -49,12 +57,12 @@ func GetAllGames(pool *pgxpool.Pool, logger *slog.Logger) ([]*models.Game, error
 	            FROM games
 		    ORDER BY created_at DESC`
 
-	rows, err := pool.Query(ctx, query)
+	rows, err := r.pool.Query(ctx, query)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			logger.Error("db: query timeout getting all games", "error", err)
+			slog.Error("db: query timeout getting all games", "error", err)
 		} else {
-			logger.Error("db: failed to query games", "error", err)
+			slog.Error("db: failed to query games", "error", err)
 		}
 		return nil, err
 	}
@@ -74,9 +82,9 @@ func GetAllGames(pool *pgxpool.Pool, logger *slog.Logger) ([]*models.Game, error
 		)
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
-				logger.Error("db: query timeout scanning game row", "error", err)
+				slog.Error("db: query timeout scanning game row", "error", err)
 			} else {
-				logger.Error("db: failed to scan game row", "error", err)
+				slog.Error("db: failed to scan game row", "error", err)
 			}
 			return nil, err
 		}
@@ -86,7 +94,7 @@ func GetAllGames(pool *pgxpool.Pool, logger *slog.Logger) ([]*models.Game, error
 	return games, nil
 }
 
-func GetGameByID(pool *pgxpool.Pool, id int64, logger *slog.Logger) (*models.Game, error) {
+func (r *GameRepository) GetByID(id int64) (*models.Game, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -94,7 +102,7 @@ func GetGameByID(pool *pgxpool.Pool, id int64, logger *slog.Logger) (*models.Gam
 		WHERE id = $1`
 
 	var game models.Game
-	err := pool.QueryRow(ctx, query, id).Scan(
+	err := r.pool.QueryRow(ctx, query, id).Scan(
 		&game.ID,
 		&game.Title,
 		&game.DevelopmentStatus,
@@ -105,9 +113,9 @@ func GetGameByID(pool *pgxpool.Pool, id int64, logger *slog.Logger) (*models.Gam
 	)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			logger.Error("db: query timeout getting game", "game_id", id, "error", err)
+			slog.Error("db: query timeout getting game", "game_id", id, "error", err)
 		} else if err != pgx.ErrNoRows {
-			logger.Error("db: failed to get game", "game_id", id, "error", err)
+			slog.Error("db: failed to get game", "game_id", id, "error", err)
 		}
 		return nil, err
 	}
@@ -115,7 +123,7 @@ func GetGameByID(pool *pgxpool.Pool, id int64, logger *slog.Logger) (*models.Gam
 	return &game, nil
 }
 
-func UpdateGame(pool *pgxpool.Pool, id int64, title string, developmentStatus string, description string, releaseDate time.Time, logger *slog.Logger) (*models.Game, error) {
+func (r *GameRepository) Update(id int64, title string, developmentStatus string, description string, releaseDate time.Time) (*models.Game, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -124,7 +132,7 @@ func UpdateGame(pool *pgxpool.Pool, id int64, title string, developmentStatus st
 		RETURNING id, title, development_status, description, release_date, created_at, updated_at`
 
 	var game models.Game
-	err := pool.QueryRow(ctx, query, title, developmentStatus, description, releaseDate, id).Scan(
+	err := r.pool.QueryRow(ctx, query, title, developmentStatus, description, releaseDate, id).Scan(
 		&game.ID,
 		&game.Title,
 		&game.DevelopmentStatus,
@@ -135,9 +143,9 @@ func UpdateGame(pool *pgxpool.Pool, id int64, title string, developmentStatus st
 	)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			logger.Error("db: query timeout updating game", "game_id", id, "error", err)
+			slog.Error("db: query timeout updating game", "game_id", id, "error", err)
 		} else if err != pgx.ErrNoRows {
-			logger.Error("db: failed to update game", "game_id", id, "error", err)
+			slog.Error("db: failed to update game", "game_id", id, "error", err)
 		}
 		return nil, err
 	}
@@ -145,17 +153,17 @@ func UpdateGame(pool *pgxpool.Pool, id int64, title string, developmentStatus st
 	return &game, nil
 }
 
-func DeleteGame(pool *pgxpool.Pool, id int64, logger *slog.Logger) error {
+func (r *GameRepository) Delete(id int64) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	query := `DELETE FROM games WHERE id = $1`
-	commandTag, err := pool.Exec(ctx, query, id)
+	commandTag, err := r.pool.Exec(ctx, query, id)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			logger.Error("db: query timeout deleting game", "game_id", id, "error", err)
+			slog.Error("db: query timeout deleting game", "game_id", id, "error", err)
 		} else {
-			logger.Error("db: failed to delete game", "game_id", id, "error", err)
+			slog.Error("db: failed to delete game", "game_id", id, "error", err)
 		}
 		return err
 	}

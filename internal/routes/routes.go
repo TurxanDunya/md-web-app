@@ -1,18 +1,24 @@
 package routes
 
 import (
-	"log/slog"
 	"md_api/internal/config"
 	"md_api/internal/handlers"
 	"md_api/internal/middleware"
+	"md_api/internal/repository"
 	"net/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Setup(mux *http.ServeMux, pool *pgxpool.Pool, cfg *config.Config, logger *slog.Logger) {
+func Setup(mux *http.ServeMux, pool *pgxpool.Pool, cfg *config.Config) {
+	gameRepo := repository.NewGameRepository(pool)
+	userRepo := repository.NewUserRepository(pool)
+
+	gameHandler := handlers.NewGameHandler(gameRepo)
+	userHandler := handlers.NewUserHandler(userRepo, cfg)
+
 	// Ping
-	mux.HandleFunc("GET /ping", middleware.RequestLogger(logger, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /ping", middleware.RequestLogger(func(w http.ResponseWriter, r *http.Request) {
 		handlers.WriteJSON(w, http.StatusOK, map[string]string{
 			"message": "pong",
 			"status":  "success",
@@ -21,22 +27,22 @@ func Setup(mux *http.ServeMux, pool *pgxpool.Pool, cfg *config.Config, logger *s
 
 	// Games
 	mux.HandleFunc("POST /api/v1/games",
-		middleware.RequestLogger(logger,
-			middleware.AuthMiddleware(cfg, logger, handlers.CreateGameHandler(pool, logger))))
+		middleware.RequestLogger(
+			middleware.AuthMiddleware(cfg, gameHandler.Create())))
 	mux.HandleFunc("GET /api/v1/games",
-		middleware.RequestLogger(logger, handlers.GetAllGamesHandler(pool, logger)))
+		middleware.RequestLogger(gameHandler.GetAll()))
 	mux.HandleFunc("GET /api/v1/games/{id}",
-		middleware.RequestLogger(logger, handlers.GetGameByIDHandler(pool, logger)))
+		middleware.RequestLogger(gameHandler.GetByID()))
 	mux.HandleFunc("PUT /api/v1/games/{id}",
-		middleware.RequestLogger(logger,
-			middleware.AuthMiddleware(cfg, logger, handlers.UpdateGameHandler(pool, logger))))
+		middleware.RequestLogger(
+			middleware.AuthMiddleware(cfg, gameHandler.Update())))
 	mux.HandleFunc("DELETE /api/v1/games/{id}",
-		middleware.RequestLogger(logger,
-			middleware.AuthMiddleware(cfg, logger, handlers.DeleteGameHandler(pool, logger))))
+		middleware.RequestLogger(
+			middleware.AuthMiddleware(cfg, gameHandler.Delete())))
 
 	// Auth
 	mux.HandleFunc("POST /api/v1/auth/register",
-		middleware.RequestLogger(logger, handlers.RegisterUserHandler(pool, logger)))
+		middleware.RequestLogger(userHandler.Register()))
 	mux.HandleFunc("POST /api/v1/auth/login",
-		middleware.RequestLogger(logger, handlers.LoginUserHandler(pool, cfg, logger)))
+		middleware.RequestLogger(userHandler.Login()))
 }

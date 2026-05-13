@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -28,7 +27,16 @@ type LoginUserResponse struct {
 	Token string `json:"token"`
 }
 
-func RegisterUserHandler(pool *pgxpool.Pool, logger *slog.Logger) http.HandlerFunc {
+type UserHandler struct {
+	repo *repository.UserRepository
+	cfg  *config.Config
+}
+
+func NewUserHandler(repo *repository.UserRepository, cfg *config.Config) *UserHandler {
+	return &UserHandler{repo: repo, cfg: cfg}
+}
+
+func (h *UserHandler) Register() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request RegisterUserRequest
 		if err := readJSON(r, &request); err != nil {
@@ -53,17 +61,17 @@ func RegisterUserHandler(pool *pgxpool.Pool, logger *slog.Logger) http.HandlerFu
 
 		bcryptedPassword, err := bcrypt.GenerateFromPassword([]byte(request.Password), bcrypt.DefaultCost)
 		if err != nil {
-			logger.Error("failed to hash password", "error", err)
+			slog.Error("failed to hash password", "error", err)
 			WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to hash password"})
 			return
 		}
 
-		user, err := repository.CreateUser(pool, &models.User{
+		user, err := h.repo.Create(&models.User{
 			Email:    request.Email,
 			Password: string(bcryptedPassword),
-		}, logger)
+		})
 		if err != nil {
-			logger.Error("failed to create user", "email", request.Email, "error", err)
+			slog.Error("failed to create user", "email", request.Email, "error", err)
 			WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal server error"})
 			return
 		}
@@ -72,7 +80,7 @@ func RegisterUserHandler(pool *pgxpool.Pool, logger *slog.Logger) http.HandlerFu
 	}
 }
 
-func LoginUserHandler(pool *pgxpool.Pool, cfg *config.Config, logger *slog.Logger) http.HandlerFunc {
+func (h *UserHandler) Login() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request LoginUserRequest
 		if err := readJSON(r, &request); err != nil {
@@ -80,7 +88,7 @@ func LoginUserHandler(pool *pgxpool.Pool, cfg *config.Config, logger *slog.Logge
 			return
 		}
 
-		user, err := repository.GetUserByEmail(pool, request.Email, logger)
+		user, err := h.repo.GetByEmail(request.Email)
 		if err != nil {
 			WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid email or password"})
 			return
@@ -92,9 +100,9 @@ func LoginUserHandler(pool *pgxpool.Pool, cfg *config.Config, logger *slog.Logge
 			return
 		}
 
-		token, err := generateJWT(user.ID, user.Email, cfg)
+		token, err := generateJWT(user.ID, user.Email, h.cfg)
 		if err != nil {
-			logger.Error("failed to generate JWT", "user_id", user.ID, "error", err)
+			slog.Error("failed to generate JWT", "user_id", user.ID, "error", err)
 			WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to generate token"})
 			return
 		}
